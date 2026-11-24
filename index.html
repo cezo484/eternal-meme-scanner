@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RugCanary — Solana memecoin risk scanner</title>
+<meta name="description" content="Paste a Solana token mint and get a plain-English risk report: mint and freeze authority, holder concentration, liquidity. Free, read-only, no wallet needed.">
+<style>
+  :root {
+    --bg: #0b0e14;
+    --card: #141926;
+    --card2: #1a2233;
+    --border: #26304a;
+    --text: #e6e9f0;
+    --muted: #8b94a7;
+    --accent: #f5c518;
+    --green: #34c759;
+    --amber: #ff9f0a;
+    --red: #ff453a;
+    --blue: #5ac8fa;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  header { text-align: center; margin-bottom: 28px; }
+  .logo { font-size: 2rem; font-weight: 800; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+  .tagline { color: var(--muted); margin: 4px 0 0; }
+  form { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    padding: 14px 16px;
+    font-size: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    min-width: 0;
+  }
+  input[type="text"]:focus { outline: 2px solid var(--accent); border-color: var(--accent); }
+  button {
+    padding: 14px 24px;
+    font-size: 1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #111;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: wait; }
+  .examples { margin-top: 12px; text-align: center; }
+  .examples span { color: var(--muted); font-size: 0.9rem; }
+  .example-btn {
+    padding: 6px 12px;
+    margin: 2px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--card2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .status {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+  .status.error { border-color: var(--red); color: #ffb3ae; }
+  .status.warn { border-color: var(--amber); color: #ffd9a0; }
+  .status.loading { color: var(--muted); }
+  .report-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .report-head h2 { margin: 0 0 4px; font-size: 1.4rem; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  .muted { color: var(--muted); font-size: 0.85rem; margin: 0; }
+  .score-box {
+    text-align: center;
+    min-width: 120px;
+    padding: 16px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 2px solid var(--border);
+  }
+  .score-box.pass { border-color: var(--green); }
+  .score-box.warn { border-color: var(--amber); }
+  .score-box.fail { border-color: var(--red); }
+  .score-num { font-size: 2.2rem; font-weight: 800; line-height: 1; }
+  .score-num span { font-size: 1rem; color: var(--muted); }
+  .score-verdict { font-weight: 700; margin-top: 4px; }
+  .score-box.pass .score-verdict { color: var(--green); }
+  .score-box.warn .score-verdict { color: var(--amber); }
+  .score-box.fail .score-verdict { color: var(--red); }
+  .score-sub { font-size: 0.8rem; color: var(--muted); }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .fact {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .fact span { display: block; font-size: 0.8rem; color: var(--muted); }
+  .fact strong { font-size: 1.05rem; }
+  h3 { margin: 28px 0 12px; font-size: 1.1rem; }
+  .check {
+    display: flex;
+    gap: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .check.pass { border-left-color: var(--green); }
+  .check.warn { border-left-color: var(--amber); }
+  .check.fail { border-left-color: var(--red); }
+  .check.info { border-left-color: var(--blue); }
+  .check.unknown { border-left-color: var(--muted); }
+  .check-badge {
+    flex: 0 0 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 0.9rem;
+    background: var(--card2);
+  }
+  .check.pass .check-badge { color: var(--green); }
+  .check.warn .check-badge { color: var(--amber); }
+  .check.fail .check-badge { color: var(--red); }
+  .check.info .check-badge { color: var(--blue); }
+  .check-head { display: flex; justify-content: space-between; gap: 8px; }
+  .check-label { font-weight: 700; }
+  .pts { font-size: 0.8rem; color: var(--amber); white-space: nowrap; }
+  .check-detail { color: var(--muted); font-size: 0.92rem; }
+  table.holders { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  table.holders th, table.holders td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+  table.holders th { color: var(--muted); font-weight: 600; }
+  .bar { width: 100%; max-width: 140px; height: 8px; background: var(--card2); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); }
+  .note { color: var(--muted); font-size: 0.85rem; }
+  .links { margin-top: 20px; }
+  .links a { color: var(--accent); margin-right: 16px; text-decoration: none; }
+  .howto {
+    margin-top: 48px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+  .howto h3 { margin-top: 0; }
+  .howto li { margin-bottom: 6px; color: var(--muted); }
+  .howto li strong { color: var(--text); }
+  footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 0.85rem; }
+  footer a { color: var(--muted); }
+  @media (max-width: 560px) {
+    .facts { grid-template-columns: repeat(2, 1fr); }
+    .report-head { flex-direction: column; }
+    form { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">Rug<span>Canary</span></div>
+    <p class="tagline">Scan a Solana token before you ape. Paste a mint, get the risk in plain English.</p>
+  </header>
+
+  <form id="scan-form">
+    <input id="mint-input" type="text" placeholder="Solana mint address, e.g. EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" autocomplete="off" spellcheck="false">
+    <button id="scan-btn" type="submit">Scan</button>
+  </form>
+  <div class="examples"><span>Try:</span> <span id="examples"></span></div>
+
+  <div id="status" class="status" hidden></div>
+  <div id="results" hidden></div>
+
+  <section class="howto">
+    <h3>What it checks</h3>
+    <ul>
+      <li><strong>Mint authority</strong> — can someone print more tokens?</li>
+      <li><strong>Freeze authority</strong> — can someone freeze your balance?</li>
+      <li><strong>Top holders</strong> — how much of the supply do the 10 biggest wallets own?</li>
+      <li><strong>Liquidity &amp; volume</strong> — is there a real market, or will a small sell crash the price?</li>
+      <li><strong>Token age</strong> — how long has it been trading?</li>
+    </ul>
+    <p class="note">Risk score 0–100: 0–29 Low, 30–59 Medium, 60–100 High. Every point is
+    explained next to the check that caused it. Data comes from the public
+    Solana RPC and the DexScreener API, live, in your browser. No wallet
+    connection, no sign-up, nothing is stored.</p>
+  </section>
+
+  <footer>
+    <p>Not financial advice. A low score means no major red flags were found at scan time — not that a token is safe.</p>
+    <p><a href="https://github.com/cezo484/eternal-meme-scanner">Source on GitHub</a> · Built for the Colosseum Eternal sprint · MIT License</p>
+  </footer>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
